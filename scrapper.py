@@ -1,3 +1,5 @@
+import sys
+
 import requests
 from bs4 import BeautifulSoup
 from transformers import BertTokenizer, BertForSequenceClassification, pipeline
@@ -9,19 +11,45 @@ NEWS_URL = "https://www.moneycontrol.com/news/business/markets"
 MODEL_NAME = "yiyanghkust/finbert-tone"
 OUTPUT_CSV = "moneycontrol_sentiment.csv"
 
+# (connect, read) timeout in seconds - without this a hung server would block forever.
+REQUEST_TIMEOUT = (5, 15)
+
+# The markup we depend on. Kept here so failures can name exactly what stopped matching.
+ARTICLE_SELECTOR = "li.clearfix"
+TITLE_SELECTOR = "h2"
+
+
+class NewsScrapeError(RuntimeError):
+    """Raised when the news page cannot be fetched or yields no headlines."""
+
 
 def get_moneycontrol_news(url=NEWS_URL):
     """Scrape the Moneycontrol markets page and return the headlines found."""
     headers = {"User-Agent": "Mozilla/5.0"}
 
-    response = requests.get(url, headers=headers)
+    try:
+        response = requests.get(url, headers=headers, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise NewsScrapeError(f"Failed to fetch news from {url}: {exc}") from exc
+
     soup = BeautifulSoup(response.text, "html.parser")
 
+    articles = soup.find_all("li", class_="clearfix")
     headlines = []
-    for article in soup.find_all("li", class_="clearfix"):
-        title_tag = article.find("h2")
+    for article in articles:
+        title_tag = article.find(TITLE_SELECTOR)
         if title_tag:
             headlines.append(title_tag.text.strip())
+
+    if not headlines:
+        raise NewsScrapeError(
+            f"No headlines parsed from {url} (final URL: {response.url}, "
+            f"HTTP {response.status_code}, {len(response.text)} bytes). "
+            f"Matched {len(articles)} '{ARTICLE_SELECTOR}' elements and 0 usable "
+            f"'{TITLE_SELECTOR}' titles inside them - the page layout probably "
+            "changed, or the request was served a block/consent page."
+        )
 
     return headlines
 
@@ -63,7 +91,12 @@ def plot_sentiment_distribution(df):
 
 
 def main():
-    news_headlines = get_moneycontrol_news()
+    try:
+        news_headlines = get_moneycontrol_news()
+    except NewsScrapeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+
     for idx, headline in enumerate(news_headlines, 1):
         print(f"{idx}. {headline}")
 
