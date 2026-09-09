@@ -30,13 +30,13 @@ model = BertForSequenceClassification.from_pretrained(model_name)
 
 nlp_pipeline = pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
 
-for headline in news_headlines:
-    result = nlp_pipeline(headline)
-    sentiment = result[0]['label']
+sentiments = [nlp_pipeline(headline)[0]['label'] for headline in news_headlines]
+
+for headline, sentiment in zip(news_headlines, sentiments):
     print(f"News: {headline} \nSentiment: {sentiment}\n")
 
 df = pd.DataFrame(news_headlines, columns=["Headline"])
-df["Sentiment"] = [nlp_pipeline(headline)[0]['label'] for headline in news_headlines]
+df["Sentiment"] = sentiments
 
 df.to_csv("moneycontrol_sentiment.csv", index=False)
 print("Sentiment analysis saved to the file.")
