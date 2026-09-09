@@ -14,8 +14,12 @@ OUTPUT_CSV = "moneycontrol_sentiment.csv"
 # (connect, read) timeout in seconds - without this a hung server would block forever.
 REQUEST_TIMEOUT = (5, 15)
 
-# The markup we depend on. Kept here so failures can name exactly what stopped matching.
-ARTICLE_SELECTOR = "li.clearfix"
+# The markup we depend on. Kept here so failures can name exactly what stopped
+# matching, and so a Moneycontrol layout change is a one-line fix. Documented in
+# the "Scraping Target and Selectors" section of README.md.
+ARTICLE_TAG = "li"
+ARTICLE_CLASS = "clearfix"
+ARTICLE_SELECTOR = f"{ARTICLE_TAG}.{ARTICLE_CLASS}"
 TITLE_SELECTOR = "h2"
 
 
@@ -35,7 +39,7 @@ def get_moneycontrol_news(url=NEWS_URL):
 
     soup = BeautifulSoup(response.text, "html.parser")
 
-    articles = soup.find_all("li", class_="clearfix")
+    articles = soup.find_all(ARTICLE_TAG, class_=ARTICLE_CLASS)
     headlines = []
     for article in articles:
         title_tag = article.find(TITLE_SELECTOR)
